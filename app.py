@@ -247,25 +247,25 @@ st.markdown("---")
 left1, right1 = st.columns(2)
 with left1:
     st.subheader("🔵 Bloch Disk")
-    st.image(plot_bloch(n, k), use_container_width=True)
+    st.image(plot_bloch(n, k), width=600)
 with right1:
     st.subheader("📊 Measurement Distribution")
-    st.image(plot_counts(counts), use_container_width=True)
+    st.image(plot_counts(counts), width=600)
 
 # 第二行图表
 left2, right2 = st.columns(2)
 with left2:
     st.subheader("📈 Success Rate vs Iterations")
-    st.image(plot_success_curve(rates), use_container_width=True)
+    st.image(plot_success_curve(rates), width=600)
 with right2:
     st.subheader("🌪️ Noise Impact Curve")
-    st.image(plot_noise_curve(st.session_state.noise_data, N), use_container_width=True)
+    st.image(plot_noise_curve(st.session_state.noise_data, N), width=600)
 
 # 第三行图表
 left3, right3 = st.columns(2)
 with left3:
     st.subheader("🔬 Probability Amplitudes")
-    st.image(plot_amplitude(counts, n), use_container_width=True)
+    st.image(plot_amplitude(counts, n), width=600)
 with right3:
     st.subheader("⚖️ Complexity Comparison")
     st.markdown(f"Classical worst-case queries: **{N-1}**  \nGrover optimal iterations: **{optimal_k}**")
