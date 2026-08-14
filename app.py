@@ -21,7 +21,6 @@ st.markdown("---")
 # ---------- 缓存模拟函数 ----------
 @st.cache_data(show_spinner=False)
 def run_ideal(n, target, k, shots=1024):
-    """理想 Grover 算法模拟"""
     qc = QuantumCircuit(n, n)
     for q in range(n):
         qc.h(q)
@@ -59,7 +58,6 @@ def run_ideal(n, target, k, shots=1024):
     return counts
 
 def run_noisy(n, target, k, noise_p, shots=1024):
-    """含退极化噪声的 Grover 算法模拟"""
     qc = QuantumCircuit(n, n)
     for q in range(n):
         qc.h(q)
@@ -165,6 +163,19 @@ def plot_noise_curve(data, N):
         ax.legend(); ax.grid(True, alpha=0.3)
     return fig_to_img(fig)
 
+def plot_complexity(N, optimal_k):
+    """经典 vs 量子查询复杂度柱状图"""
+    fig, ax = plt.subplots(figsize=(5,4))
+    labels = ['Classical\n(worst case)', 'Grover\n(optimal)']
+    values = [N-1, optimal_k]
+    bars = ax.bar(labels, values, color=['gray', 'red'], edgecolor='white')
+    ax.set_ylabel('Queries / Iterations')
+    ax.set_title('Quantum Speedup')
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                str(val), ha='center', fontsize=12)
+    return fig_to_img(fig)
+
 # ---------- 状态管理 ----------
 if 'k' not in st.session_state:
     st.session_state.k = 0
@@ -268,5 +279,4 @@ with left3:
     st.image(plot_amplitude(counts, n), width=600)
 with right3:
     st.subheader("⚖️ Complexity Comparison")
-    st.markdown(f"Classical worst-case queries: **{N-1}**  \nGrover optimal iterations: **{optimal_k}**")
-    st.bar_chart({"Classical Search": N-1, "Grover Algorithm": optimal_k})
+    st.image(plot_complexity(N, optimal_k), width=600)
