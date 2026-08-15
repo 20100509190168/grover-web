@@ -86,12 +86,19 @@ def run_noisy(n, target, k, noise_p, shots=1024):
             qc.x(q)
             qc.h(q)
     qc.measure(range(n), range(n))
+
     noise_model = NoiseModel()
     if noise_p > 0:
+        # 单比特门噪声
         err1 = depolarizing_error(noise_p, 1)
-        err2 = depolarizing_error(noise_p, 2)
         noise_model.add_all_qubit_quantum_error(err1, ['h', 'x', 'z'])
-        noise_model.add_all_qubit_quantum_error(err2, ['cz', 'ccx'])
+        # 双比特门噪声（仅 cz）
+        err2 = depolarizing_error(noise_p, 2)
+        noise_model.add_all_qubit_quantum_error(err2, ['cz'])
+        # 三比特门噪声（ccx）
+        err3 = depolarizing_error(noise_p, 3)
+        noise_model.add_all_qubit_quantum_error(err3, ['ccx'])
+
     sim = AerSimulator(noise_model=noise_model)
     counts = sim.run(qc, shots=shots).result().get_counts()
     return counts
@@ -248,7 +255,7 @@ c4.metric("Measured Success", f"{success:.1%}")
 
 st.markdown("---")
 
-# 第一行
+# 第一行图表（带间距）
 left1, right1 = st.columns(2, gap="small")
 with left1:
     st.subheader("🔵 Bloch Disk")
@@ -257,7 +264,7 @@ with right1:
     st.subheader("📊 Measurement Distribution")
     st.image(plot_counts(counts), width=380)
 
-# 第二行
+# 第二行图表（带间距）
 left2, right2 = st.columns(2, gap="small")
 with left2:
     st.subheader("📈 Success Rate vs Iterations")
@@ -266,7 +273,7 @@ with right2:
     st.subheader("🌪️ Noise Impact Curve")
     st.image(plot_noise_curve(st.session_state.noise_data, N), width=380)
 
-# 第三行
+# 第三行图表（带间距）
 left3, right3 = st.columns(2, gap="small")
 with left3:
     st.subheader("🔬 Probability Amplitudes")
