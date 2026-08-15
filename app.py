@@ -26,7 +26,6 @@ def run_ideal(n, target, k, shots=1024):
         qc.h(q)
     target_bin = format(target, f'0{n}b')[::-1]
     for _ in range(k):
-        # Oracle
         for q, bit in enumerate(target_bin):
             if bit == '0':
                 qc.x(q)
@@ -39,7 +38,6 @@ def run_ideal(n, target, k, shots=1024):
         for q, bit in enumerate(target_bin):
             if bit == '0':
                 qc.x(q)
-        # 扩散算符
         for q in range(n):
             qc.h(q)
             qc.x(q)
@@ -101,7 +99,7 @@ def run_noisy(n, target, k, noise_p, shots=1024):
 # ---------- 绘图辅助函数 ----------
 def fig_to_img(fig):
     buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
     buf.seek(0)
     plt.close(fig)
     return buf
@@ -126,7 +124,7 @@ def plot_bloch(n, k):
     return fig_to_img(fig)
 
 def plot_counts(counts):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(4,3.5))
     states = sorted(counts.keys())
     vals = [counts[s] for s in states]
     ax.bar(states, vals, color='#1f77b4', edgecolor='white')
@@ -134,7 +132,7 @@ def plot_counts(counts):
     return fig_to_img(fig)
 
 def plot_success_curve(rates):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(4,3.5))
     ks = list(rates.keys()); vs = list(rates.values())
     ax.plot(ks, vs, 'o-', color='purple', markersize=8, linewidth=2)
     ax.set_xlabel('Iterations k'); ax.set_ylabel('Success Rate')
@@ -142,7 +140,7 @@ def plot_success_curve(rates):
     return fig_to_img(fig)
 
 def plot_amplitude(counts, n):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(4,3.5))
     total = sum(counts.values())
     states = [f'|{i:0{n}b}⟩' for i in range(2**n)]
     amps = [np.sqrt(counts.get(s,0)/total) for s in states]
@@ -151,7 +149,7 @@ def plot_amplitude(counts, n):
     return fig_to_img(fig)
 
 def plot_noise_curve(data, N):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(4,3.5))
     ax.set_xlim(0,0.22); ax.set_ylim(0,1.05)
     ax.set_xlabel('Noise Strength p'); ax.set_ylabel('Success Rate')
     if data:
@@ -164,7 +162,7 @@ def plot_noise_curve(data, N):
     return fig_to_img(fig)
 
 def plot_complexity(N, optimal_k):
-    fig, ax = plt.subplots(figsize=(5,4))
+    fig, ax = plt.subplots(figsize=(4,3.5))
     labels = ['Classical\n(worst case)', 'Grover\n(optimal)']
     values = [N-1, optimal_k]
     bars = ax.bar(labels, values, color=['gray', 'red'], edgecolor='white')
@@ -250,29 +248,29 @@ c4.metric("Measured Success", f"{success:.1%}")
 
 st.markdown("---")
 
-# 第一行图表（带间距）
-left1, right1 = st.columns(2, gap="medium")
+# 第一行
+left1, right1 = st.columns(2, gap="small")
 with left1:
     st.subheader("🔵 Bloch Disk")
-    st.image(plot_bloch(n, k), width=450)
+    st.image(plot_bloch(n, k), width=380)
 with right1:
     st.subheader("📊 Measurement Distribution")
-    st.image(plot_counts(counts), width=450)
+    st.image(plot_counts(counts), width=380)
 
-# 第二行图表（带间距）
-left2, right2 = st.columns(2, gap="medium")
+# 第二行
+left2, right2 = st.columns(2, gap="small")
 with left2:
     st.subheader("📈 Success Rate vs Iterations")
-    st.image(plot_success_curve(rates), width=450)
+    st.image(plot_success_curve(rates), width=380)
 with right2:
     st.subheader("🌪️ Noise Impact Curve")
-    st.image(plot_noise_curve(st.session_state.noise_data, N), width=450)
+    st.image(plot_noise_curve(st.session_state.noise_data, N), width=380)
 
-# 第三行图表（带间距）
-left3, right3 = st.columns(2, gap="medium")
+# 第三行
+left3, right3 = st.columns(2, gap="small")
 with left3:
     st.subheader("🔬 Probability Amplitudes")
-    st.image(plot_amplitude(counts, n), width=450)
+    st.image(plot_amplitude(counts, n), width=380)
 with right3:
     st.subheader("⚖️ Complexity Comparison")
-    st.image(plot_complexity(N, optimal_k), width=450)
+    st.image(plot_complexity(N, optimal_k), width=380)
