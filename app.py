@@ -164,7 +164,6 @@ def plot_noise_curve(data, N):
     return fig_to_img(fig)
 
 def plot_complexity(N, optimal_k):
-    """经典 vs 量子查询复杂度柱状图"""
     fig, ax = plt.subplots(figsize=(5,4))
     labels = ['Classical\n(worst case)', 'Grover\n(optimal)']
     values = [N-1, optimal_k]
@@ -225,13 +224,11 @@ target_str = format(target, f'0{n}b')
 counts = run_ideal(n, target, k)
 success = counts.get(target_str, 0) / 1024
 
-# 成功率曲线数据
 rates = {}
 for i in range(4):
     cnt = run_ideal(n, target, i)
     rates[i] = cnt.get(target_str, 0) / 1024
 
-# 噪声实验
 if noisy_btn:
     cnt_n = run_noisy(n, target, optimal_k, noise_p)
     succ_n = cnt_n.get(target_str, 0) / 1024
@@ -241,7 +238,6 @@ if noisy_btn:
 if clear_btn:
     st.session_state.noise_data.clear()
 
-# ---------- 主界面显示 ----------
 theta_deg = np.degrees(np.arcsin(1/np.sqrt(N)))
 angle = 2 * theta_deg * k
 theory = np.sin((2*k+1)*np.arcsin(1/np.sqrt(N)))**2
@@ -254,29 +250,29 @@ c4.metric("Measured Success", f"{success:.1%}")
 
 st.markdown("---")
 
-# 第一行图表
-left1, right1 = st.columns(2)
+# 第一行图表（带间距）
+left1, right1 = st.columns(2, gap="medium")
 with left1:
     st.subheader("🔵 Bloch Disk")
-    st.image(plot_bloch(n, k), width=600)
+    st.image(plot_bloch(n, k), width=450)
 with right1:
     st.subheader("📊 Measurement Distribution")
-    st.image(plot_counts(counts), width=600)
+    st.image(plot_counts(counts), width=450)
 
-# 第二行图表
-left2, right2 = st.columns(2)
+# 第二行图表（带间距）
+left2, right2 = st.columns(2, gap="medium")
 with left2:
     st.subheader("📈 Success Rate vs Iterations")
-    st.image(plot_success_curve(rates), width=600)
+    st.image(plot_success_curve(rates), width=450)
 with right2:
     st.subheader("🌪️ Noise Impact Curve")
-    st.image(plot_noise_curve(st.session_state.noise_data, N), width=600)
+    st.image(plot_noise_curve(st.session_state.noise_data, N), width=450)
 
-# 第三行图表
-left3, right3 = st.columns(2)
+# 第三行图表（带间距）
+left3, right3 = st.columns(2, gap="medium")
 with left3:
     st.subheader("🔬 Probability Amplitudes")
-    st.image(plot_amplitude(counts, n), width=600)
+    st.image(plot_amplitude(counts, n), width=450)
 with right3:
     st.subheader("⚖️ Complexity Comparison")
-    st.image(plot_complexity(N, optimal_k), width=600)
+    st.image(plot_complexity(N, optimal_k), width=450)
