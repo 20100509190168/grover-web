@@ -11,7 +11,7 @@ import io
 import time
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
-from qiskit_aer.noise import NoiseModel, depolarizing_error
+from qiskit_aer.noise import NoiseModel, depolarizing_error, ReadoutError
 
 # ---------- 页面设置 ----------
 st.set_page_config(page_title="Grover Quantum Search", layout="wide", page_icon="🔍")
@@ -26,7 +26,6 @@ def run_ideal(n, target, k, shots=1024):
         qc.h(q)
     target_bin = format(target, f'0{n}b')[::-1]
     for _ in range(k):
-        # Oracle
         for q, bit in enumerate(target_bin):
             if bit == '0':
                 qc.x(q)
@@ -39,7 +38,6 @@ def run_ideal(n, target, k, shots=1024):
         for q, bit in enumerate(target_bin):
             if bit == '0':
                 qc.x(q)
-        # 扩散算符
         for q in range(n):
             qc.h(q)
             qc.x(q)
@@ -91,19 +89,79 @@ def run_noisy(n, target, k, noise_p, shots=1024):
 
     noise_model = NoiseModel()
     if noise_p > 0:
-        # 单比特门噪声
         err1 = depolarizing_error(noise_p, 1)
         noise_model.add_all_qubit_quantum_error(err1, ['h', 'x', 'z'])
-        # 双比特门噪声（仅 cz）
         err2 = depolarizing_error(noise_p, 2)
         noise_model.add_all_qubit_quantum_error(err2, ['cz'])
-        # 三比特门噪声（ccx）
         err3 = depolarizing_error(noise_p, 3)
         noise_model.add_all_qubit_quantum_error(err3, ['ccx'])
 
     sim = AerSimulator(noise_model=noise_model)
     counts = sim.run(qc, shots=shots).result().get_counts()
     return counts
+
+def run_readout_noisy(n, target, k, readout_p, shots=1024):
+    """只加读出噪声的模拟，用于测量误差缓解对比"""
+    qc = QuantumCircuit(n, n)
+    for q in range(n):
+        qc.h(q)
+    target_bin = format(target, f'0{n}b')[::-1]
+    for _ in range(k):
+        for q, bit in enumerate(target_bin):
+            if bit == '0':
+                qc.x(q)
+        if n == 2:
+            qc.cz(0, 1)
+        elif n == 3:
+            qc.h(2)
+            qc.ccx(0, 1, 2)
+            qc.h(2)
+        for q, bit in enumerate(target_bin):
+            if bit == '0':
+                qc.x(q)
+        for q in range(n):
+            qc.h(q)
+            qc.x(q)
+        if n == 2:
+            qc.cz(0, 1)
+        elif n == 3:
+            qc.h(2)
+            qc.ccx(0, 1, 2)
+            qc.h(2)
+        for q in range(n):
+            qc.x(q)
+            qc.h(q)
+    qc.measure(range(n), range(n))
+
+    noise_model = NoiseModel()
+    if readout_p > 0:
+        readout_error = ReadoutError([[1-readout_p, readout_p],
+                                      [readout_p, 1-readout_p]])
+        noise_model.add_all_qubit_readout_error(readout_error)
+    sim = AerSimulator(noise_model=noise_model)
+    counts = sim.run(qc, shots=shots).result().get_counts()
+    return counts
+
+def apply_readout_mitigation(counts, readout_p):
+    """使用 LocalReadoutMitigator 进行测量误差缓解"""
+    from qiskit.result import LocalReadoutMitigator
+    mitigator = LocalReadoutMitigator([[1-readout_p, readout_p],
+                                       [readout_p, 1-readout_p]])
+    return mitigator.apply(counts)
+
+def batch_noise_scan(n, target, optimal_k, p_values, repeat=5, shots=1024):
+    """批量噪声扫描，返回 (p, mean, std) 列表"""
+    results = []
+    target_str = format(target, f'0{n}b')
+    for p in p_values:
+        success_list = []
+        for _ in range(repeat):
+            cnt = run_noisy(n, target, optimal_k, p, shots)
+            success_list.append(cnt.get(target_str, 0) / shots)
+        mean = np.mean(success_list)
+        std = np.std(success_list)
+        results.append((p, mean, std))
+    return results
 
 # ---------- 绘图辅助函数 ----------
 def fig_to_img(fig):
@@ -151,10 +209,8 @@ def plot_success_curve(rates):
 def plot_amplitude(counts, n):
     fig, ax = plt.subplots(figsize=(4,3.5))
     total = sum(counts.values())
-    # 使用纯二进制字符串作为键（与 counts 的键一致）
     binary_states = [format(i, f'0{n}b') for i in range(2**n)]
     amps = [np.sqrt(counts.get(s, 0) / total) for s in binary_states]
-    # 显示标签加上狄拉克符号
     labels = [f'|{s}⟩' for s in binary_states]
     ax.bar(labels, amps, color='orange', edgecolor='white')
     ax.set_title('Probability Amplitudes'); ax.set_ylabel('Magnitude')
@@ -216,6 +272,14 @@ with st.sidebar:
     clear_btn = st.button("🗑️ Clear Noise Data", use_container_width=True)
 
     st.markdown("---")
+    st.subheader("📊 Batch Noise Scan")
+    batch_btn = st.button("🚀 Run Batch Scan (p=0~0.2)", use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("📉 Error Mitigation")
+    mit_btn = st.button("🛡️ Compare Mitigation", use_container_width=True)
+
+    st.markdown("---")
     st.info(f"💡 Optimal iterations: **{optimal_k}**")
 
 # ---------- 按钮逻辑 ----------
@@ -248,6 +312,23 @@ if noisy_btn:
 if clear_btn:
     st.session_state.noise_data.clear()
 
+if batch_btn:
+    p_values = np.arange(0.0, 0.21, 0.02)
+    noise_data = batch_noise_scan(n, target, optimal_k, p_values)
+    st.session_state.noise_data = noise_data
+    st.sidebar.success("✅ Batch scan complete!")
+
+if mit_btn:
+    readout_p = 0.1  # 固定 10% 读出错误率
+    cnt_noisy = run_readout_noisy(n, target, optimal_k, readout_p)
+    cnt_mit = apply_readout_mitigation(cnt_noisy, readout_p)
+    succ_noisy = cnt_noisy.get(target_str, 0) / 1024
+    total_mit = sum(cnt_mit.values())
+    succ_mit = cnt_mit.get(target_str, 0) / total_mit if total_mit > 0 else 0
+    st.session_state.mit_result = (succ_noisy, succ_mit, readout_p)
+    st.sidebar.success(f"Mitigation: {succ_noisy:.1%} → {succ_mit:.1%}")
+
+# 计算指标
 theta_deg = np.degrees(np.arcsin(1/np.sqrt(N)))
 angle = 2 * theta_deg * k
 theory = np.sin((2*k+1)*np.arcsin(1/np.sqrt(N)))**2
@@ -260,7 +341,7 @@ c4.metric("Measured Success", f"{success:.1%}")
 
 st.markdown("---")
 
-# 第一行图表（带间距）
+# 第一行图表
 left1, right1 = st.columns(2, gap="small")
 with left1:
     st.subheader("🔵 Bloch Disk")
@@ -269,7 +350,7 @@ with right1:
     st.subheader("📊 Measurement Distribution")
     st.image(plot_counts(counts), width=380)
 
-# 第二行图表（带间距）
+# 第二行图表
 left2, right2 = st.columns(2, gap="small")
 with left2:
     st.subheader("📈 Success Rate vs Iterations")
@@ -278,7 +359,7 @@ with right2:
     st.subheader("🌪️ Noise Impact Curve")
     st.image(plot_noise_curve(st.session_state.noise_data, N), width=380)
 
-# 第三行图表（带间距）
+# 第三行图表
 left3, right3 = st.columns(2, gap="small")
 with left3:
     st.subheader("🔬 Probability Amplitudes")
@@ -286,3 +367,23 @@ with left3:
 with right3:
     st.subheader("⚖️ Complexity Comparison")
     st.image(plot_complexity(N, optimal_k), width=380)
+
+# 误差缓解结果展示
+if 'mit_result' in st.session_state and st.session_state.mit_result is not None:
+    st.markdown("---")
+    st.subheader("📉 Measurement Error Mitigation Result")
+    succ_noisy, succ_mit, rp = st.session_state.mit_result
+    fig, ax = plt.subplots(figsize=(4,3))
+    labels = ['Noisy', 'Mitigated']
+    values = [succ_noisy, succ_mit]
+    bars = ax.bar(labels, values, color=['#D32F2F', '#4CAF50'], edgecolor='white')
+    ax.set_ylabel('Success Rate')
+    ax.set_ylim(0,1.05)
+    ax.set_title(f'Readout Error p={rp:.2f}')
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.02, f'{val:.1%}', ha='center')
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
+    buf.seek(0)
+    plt.close(fig)
+    st.image(buf, width=400)
