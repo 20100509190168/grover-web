@@ -143,11 +143,43 @@ def run_readout_noisy(n, target, k, readout_p, shots=1024):
     return counts
 
 def apply_readout_mitigation(counts, readout_p):
-    """使用 LocalReadoutMitigator 进行测量误差缓解"""
-    from qiskit.result import LocalReadoutMitigator
-    mitigator = LocalReadoutMitigator([[1-readout_p, readout_p],
-                                       [readout_p, 1-readout_p]])
-    return mitigator.apply(counts)
+    """使用线性反演进行测量误差缓解（基于 numpy，兼容 Qiskit 1.x）"""
+    n = len(next(iter(counts.keys())))  # 比特数
+    dim = 2 ** n
+
+    # 构造单比特混淆矩阵
+    M1 = np.array([[1 - readout_p, readout_p],
+                   [readout_p, 1 - readout_p]])
+    # 构造完整混淆矩阵（Kronecker 积）
+    M = M1.copy()
+    for _ in range(n - 1):
+        M = np.kron(M, M1)
+
+    try:
+        M_inv = np.linalg.inv(M)
+    except np.linalg.LinAlgError:
+        return counts  # 矩阵不可逆时返回原始结果
+
+    # 构建测量概率向量
+    p_meas = np.zeros(dim)
+    states = [format(i, f'0{n}b') for i in range(dim)]
+    total = sum(counts.values())
+    for i, s in enumerate(states):
+        p_meas[i] = counts.get(s, 0) / total
+
+    # 线性反演校正
+    p_corr = M_inv @ p_meas
+    p_corr = np.clip(p_corr, 0, None)  # 去除负概率
+    p_sum = p_corr.sum()
+    if p_sum > 0:
+        p_corr = p_corr / p_sum
+
+    # 转换回 counts 字典（按原始总测量次数缩放）
+    corrected_counts = {}
+    for i, s in enumerate(states):
+        corrected_counts[s] = int(round(p_corr[i] * total))
+
+    return corrected_counts
 
 def batch_noise_scan(n, target, optimal_k, p_values, repeat=5, shots=1024):
     """批量噪声扫描，返回 (p, mean, std) 列表"""
