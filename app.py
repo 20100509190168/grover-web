@@ -26,6 +26,7 @@ def run_ideal(n, target, k, shots=1024):
         qc.h(q)
     target_bin = format(target, f'0{n}b')[::-1]
     for _ in range(k):
+        # Oracle
         for q, bit in enumerate(target_bin):
             if bit == '0':
                 qc.x(q)
@@ -38,6 +39,7 @@ def run_ideal(n, target, k, shots=1024):
         for q, bit in enumerate(target_bin):
             if bit == '0':
                 qc.x(q)
+        # 扩散算符
         for q in range(n):
             qc.h(q)
             qc.x(q)
@@ -149,9 +151,12 @@ def plot_success_curve(rates):
 def plot_amplitude(counts, n):
     fig, ax = plt.subplots(figsize=(4,3.5))
     total = sum(counts.values())
-    states = [f'|{i:0{n}b}⟩' for i in range(2**n)]
-    amps = [np.sqrt(counts.get(s,0)/total) for s in states]
-    ax.bar(states, amps, color='orange', edgecolor='white')
+    # 使用纯二进制字符串作为键（与 counts 的键一致）
+    binary_states = [format(i, f'0{n}b') for i in range(2**n)]
+    amps = [np.sqrt(counts.get(s, 0) / total) for s in binary_states]
+    # 显示标签加上狄拉克符号
+    labels = [f'|{s}⟩' for s in binary_states]
+    ax.bar(labels, amps, color='orange', edgecolor='white')
     ax.set_title('Probability Amplitudes'); ax.set_ylabel('Magnitude')
     return fig_to_img(fig)
 
