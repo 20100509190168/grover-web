@@ -1,9 +1,7 @@
 import sys
 sys.setrecursionlimit(10000)
-
 import matplotlib
 matplotlib.use('Agg')
-
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,13 +10,11 @@ import time
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel, depolarizing_error, ReadoutError
-
-# ---------- 页面设置 ----------
+# 页面设置 
 st.set_page_config(page_title="Grover Quantum Search", layout="wide", page_icon="🔍")
 st.title("🔍 Grover Quantum Search Algorithm Visualization")
 st.markdown("---")
-
-# ---------- 缓存模拟函数 ----------
+# 缓存模拟函数 
 @st.cache_data(show_spinner=False)
 def run_ideal(n, target, k, shots=1024):
     qc = QuantumCircuit(n, n)
@@ -195,7 +191,7 @@ def batch_noise_scan(n, target, optimal_k, p_values, repeat=5, shots=1024):
         results.append((p, mean, std))
     return results
 
-# ---------- 绘图辅助函数 ----------
+# 绘图辅助函数 
 def fig_to_img(fig):
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
@@ -273,13 +269,13 @@ def plot_complexity(N, optimal_k):
                 str(val), ha='center', fontsize=12)
     return fig_to_img(fig)
 
-# ---------- 状态管理 ----------
+# 状态管理 
 if 'k' not in st.session_state:
     st.session_state.k = 0
 if 'noise_data' not in st.session_state:
     st.session_state.noise_data = []
 
-# ---------- 侧边栏 ----------
+#  侧边栏 
 with st.sidebar:
     st.header("⚙️ Configuration")
     n = st.selectbox("Number of Qubits", [2, 3], index=0)
@@ -314,7 +310,7 @@ with st.sidebar:
     st.markdown("---")
     st.info(f"💡 Optimal iterations: **{optimal_k}**")
 
-# ---------- 按钮逻辑 ----------
+# 按钮逻辑 
 if step:
     st.session_state.k += 1
 if reset:
