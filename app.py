@@ -323,6 +323,8 @@ if 'noise_data' not in st.session_state:
     st.session_state.noise_data = []
 if 'conv_result' not in st.session_state:
     st.session_state.conv_result = None
+if 'auto_playing' not in st.session_state:
+    st.session_state.auto_playing = False
 
 # ---------- 侧边栏 ----------
 with st.sidebar:
@@ -340,7 +342,8 @@ with st.sidebar:
         step = st.button("➕ Step", use_container_width=True)
     with col2:
         reset = st.button("🔄 Reset", use_container_width=True)
-    auto = st.checkbox("▶️ Auto Play", key="auto_run")
+    
+    auto_btn = st.button("▶️ Auto Play", use_container_width=True)
 
     st.markdown("---")
     st.subheader("🌪️ Noise Experiment")
@@ -365,21 +368,30 @@ with st.sidebar:
     st.info(f"💡 Optimal iterations: **{optimal_k}**")
 
 # ---------- 按钮逻辑 ----------
+# 如果手动点击了单步或重置，立刻停止自动播放
+if step or reset:
+    st.session_state.auto_playing = False
+
 if step:
     st.session_state.k += 1
 if reset:
     st.session_state.k = 0
-if step or reset:
-    st.session_state.auto_run = False
-if st.session_state.auto_run:
+
+# 点击自动播放按钮，启动自动播放
+if auto_btn:
+    st.session_state.auto_playing = True
+
+# 自动播放核心逻辑
+if st.session_state.auto_playing:
     if st.session_state.k < optimal_k:
         time.sleep(0.8)
         st.session_state.k += 1
         st.rerun()
     else:
-        st.session_state.auto_run = False
+        # 达到最优次数，自动停止
+        st.session_state.auto_playing = False
         st.sidebar.success("✅ Auto Play Finished!")
-        st.rerun()    
+        st.rerun()
 
 k = st.session_state.k
 target_str = format(target, f'0{n}b')
