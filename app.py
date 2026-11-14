@@ -340,7 +340,7 @@ with st.sidebar:
         step = st.button("➕ Step", use_container_width=True)
     with col2:
         reset = st.button("🔄 Reset", use_container_width=True)
-    auto = st.checkbox("▶️ Auto Play")
+    auto = st.checkbox("▶️ Auto Play", key="auto_run")
 
     st.markdown("---")
     st.subheader("🌪️ Noise Experiment")
@@ -369,11 +369,17 @@ if step:
     st.session_state.k += 1
 if reset:
     st.session_state.k = 0
-if auto:
-    if st.session_state.k < optimal_k + 2:
+if step or reset:
+    st.session_state.auto_run = False
+if st.session_state.auto_run:
+    if st.session_state.k < optimal_k:
         time.sleep(0.8)
         st.session_state.k += 1
         st.rerun()
+    else:
+        st.session_state.auto_run = False
+        st.sidebar.success("✅ Auto Play Finished!")
+        st.rerun()    
 
 k = st.session_state.k
 target_str = format(target, f'0{n}b')
