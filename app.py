@@ -67,10 +67,6 @@ def run_ideal(n, target, k, shots=1024):
 
 # ---------- 物理复合噪声：热弛豫 + 读出误差 ----------
 def build_physical_noise(noise_p, n, gate_time_1q=50.0, gate_time_2q=300.0):
-    """
-    noise_p = 0 时 T1/T2 取理想值；noise_p 越大，T1/T2 越短。
-    参考量级：T1_ideal = 80 μs, T2_ideal = 60 μs（超导典型值）。
-    """
     T1_ideal, T2_ideal = 80.0, 60.0
     T1 = T1_ideal / (1 + noise_p * 8.0)
     T2 = min(T2_ideal / (1 + noise_p * 8.0), 2 * T1)
@@ -81,12 +77,12 @@ def build_physical_noise(noise_p, n, gate_time_1q=50.0, gate_time_2q=300.0):
     err_1q = thermal_relaxation_error(T1, T2, gate_time_1q)
     nm.add_all_qubit_quantum_error(err_1q, ['h', 'x', 'z'])
 
-    # 双比特门（cz 和 cx，cx 用于 mcx 分解）
+    # 双比特门
     err_2q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_2q, ['cz', 'cx'])
 
-    # 三比特门（ccx）
+    # 三比特门
     err_3q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q)).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
@@ -122,7 +118,6 @@ def run_readout_noisy(n, target, k, readout_p, shots=1024):
     return counts
 
 def apply_readout_mitigation(counts, readout_p):
-    """线性反演测量误差缓解（numpy 实现）"""
     n = len(next(iter(counts.keys())))
     dim = 2 ** n
     M1 = np.array([[1 - readout_p, readout_p],
@@ -156,7 +151,7 @@ def state_fidelity(counts_noisy, counts_ideal):
         fid += np.sqrt(pi * pn)
     return fid
 
-# ---------- 批量噪声扫描（返回 p, mean, std, fidelity） ----------
+# ---------- 批量噪声扫描 ----------
 @st.cache_data(show_spinner=False)
 def batch_noise_scan(n, target, optimal_k, p_values_tuple, repeat=20, shots=512):
     p_values = list(p_values_tuple)
@@ -278,7 +273,6 @@ def plot_complexity(N, optimal_k):
     return fig_to_img(fig)
 
 def plot_advantage_ratio(data, n, optimal_k):
-    """量子/经典成功率比：相同查询预算下，经典上界为 k/N"""
     N = 2 ** n
     classical_bound = optimal_k / N
     fig, ax = plt.subplots(figsize=(4, 3.5))
@@ -368,7 +362,7 @@ with st.sidebar:
     st.info(f"💡 Optimal iterations: **{optimal_k}**")
 
 # ---------- 按钮逻辑 ----------
-# 如果手动点击了单步或重置，立刻停止自动播放
+# 手动干预时立刻停止自动播放
 if step or reset:
     st.session_state.auto_playing = False
 
@@ -377,18 +371,18 @@ if step:
 if reset:
     st.session_state.k = 0
 
-# 点击自动播放按钮，启动自动播放
+# 点击自动播放
 if auto_btn:
     st.session_state.auto_playing = True
 
-# 自动播放核心逻辑
+# 自动播放核心逻辑（放慢速度，多跑几步让动画更明显）
 if st.session_state.auto_playing:
-    if st.session_state.k < optimal_k:
-        time.sleep(0.8)
+    # 故意跑到 optimal_k + 2 步，这样可以看到箭头越过最佳位置
+    if st.session_state.k < optimal_k + 2:
+        time.sleep(1.2)  # 放慢至 1.2 秒，让眼睛能看清图片变化
         st.session_state.k += 1
         st.rerun()
     else:
-        # 达到最优次数，自动停止
         st.session_state.auto_playing = False
         st.sidebar.success("✅ Auto Play Finished!")
         st.rerun()
