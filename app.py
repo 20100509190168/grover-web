@@ -340,14 +340,14 @@ with st.sidebar:
     auto_btn = st.button("▶️ Auto Play", use_container_width=True)
 
     st.markdown("---")
-    st.subheader("🌪️ Noise Experiment")
+    st.subheader("🌪️ Noise Experiment (Manual)")
     noise_p = st.slider("Physical Noise p", 0.0, 0.2, 0.0, 0.01)
-    repeat_m = st.selectbox("Repeat M (for Batch)", [5, 10, 20, 50], index=2)
     noisy_btn = st.button("🔬 Run Noisy", use_container_width=True)
     clear_btn = st.button("🗑️ Clear Noise Data", use_container_width=True)
 
     st.markdown("---")
     st.subheader("📊 Batch Noise Scan")
+    repeat_m = st.selectbox("Repeat M (for Batch)", [5, 10, 20, 50], index=2)
     batch_btn = st.button("🚀 Run Batch Scan (p=0~0.2)", use_container_width=True)
 
     st.markdown("---")
@@ -362,7 +362,6 @@ with st.sidebar:
     st.info(f"💡 Optimal iterations: **{optimal_k}**")
 
 # ---------- 按钮逻辑 ----------
-# 手动干预时立刻停止自动播放
 if step or reset:
     st.session_state.auto_playing = False
 
@@ -370,8 +369,6 @@ if step:
     st.session_state.k += 1
 if reset:
     st.session_state.k = 0
-
-# 点击自动播放按钮，启动自动播放
 if auto_btn:
     st.session_state.auto_playing = True
 
