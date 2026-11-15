@@ -73,22 +73,18 @@ def build_physical_noise(noise_p, n, gate_time_1q=50.0, gate_time_2q=300.0):
 
     nm = NoiseModel()
 
-    # 单比特门
     err_1q = thermal_relaxation_error(T1, T2, gate_time_1q)
     nm.add_all_qubit_quantum_error(err_1q, ['h', 'x', 'z'])
 
-    # 双比特门
     err_2q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_2q, ['cz', 'cx'])
 
-    # 三比特门
     err_3q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q)).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_3q, ['ccx'])
 
-    # 读出误差
     readout_p = min(noise_p * 0.4, 0.15)
     if readout_p > 0:
         nm.add_all_qubit_readout_error(
@@ -104,7 +100,6 @@ def run_noisy(n, target, k, noise_p, shots=1024):
     counts = sim.run(qc, shots=shots).result().get_counts()
     return counts
 
-# ---------- 仅读出噪声（用于误差缓解对比） ----------
 def run_readout_noisy(n, target, k, readout_p, shots=1024):
     qc = build_grover_circuit(n, target, k)
     nm = NoiseModel()
@@ -139,7 +134,6 @@ def apply_readout_mitigation(counts, readout_p):
         p_corr = p_corr / p_sum
     return {s: int(round(p_corr[i] * total)) for i, s in enumerate(states)}
 
-# ---------- 保真度计算 ----------
 def state_fidelity(counts_noisy, counts_ideal):
     states = list(counts_ideal.keys())
     total_i = sum(counts_ideal.values())
@@ -151,7 +145,6 @@ def state_fidelity(counts_noisy, counts_ideal):
         fid += np.sqrt(pi * pn)
     return fid
 
-# ---------- 批量噪声扫描 ----------
 @st.cache_data(show_spinner=False)
 def batch_noise_scan(n, target, optimal_k, p_values_tuple, repeat=20, shots=512):
     p_values = list(p_values_tuple)
@@ -172,7 +165,6 @@ def batch_noise_scan(n, target, optimal_k, p_values_tuple, repeat=20, shots=512)
         results.append((p, mean, std, fid))
     return results
 
-# ---------- 收敛性诊断 ----------
 @st.cache_data(show_spinner=False)
 def convergence_diagnostic(n, target, optimal_k, p_fixed=0.08,
                            M_list=(5, 10, 20, 50, 100), shots=512):
@@ -311,14 +303,16 @@ def plot_convergence(results):
     return fig_to_img(fig)
 
 # ---------- 状态管理 ----------
-if 'k' not in st.session_state:
-    st.session_state.k = 0
-if 'noise_data' not in st.session_state:
-    st.session_state.noise_data = []
-if 'conv_result' not in st.session_state:
-    st.session_state.conv_result = None
-if 'auto_playing' not in st.session_state:
-    st.session_state.auto_playing = False
+if 'k' not in st.session_state: st.session_state.k = 0
+if 'noise_data' not in st.session_state: st.session_state.noise_data = []
+if 'conv_result' not in st.session_state: st.session_state.conv_result = None
+if 'auto_playing' not in st.session_state: st.session_state.auto_playing = False
+
+# 记录提示信息的状态
+if 'msg_noisy' not in st.session_state: st.session_state.msg_noisy = ""
+if 'msg_batch' not in st.session_state: st.session_state.msg_batch = ""
+if 'msg_mit' not in st.session_state: st.session_state.msg_mit = ""
+if 'msg_conv' not in st.session_state: st.session_state.msg_conv = ""
 
 # ---------- 侧边栏 ----------
 with st.sidebar:
@@ -328,6 +322,9 @@ with st.sidebar:
     target = st.selectbox("Target State", list(range(N)),
                           format_func=lambda x: f"|{x:0{n}b}⟩")
     optimal_k = int(np.floor(np.pi / 4 * np.sqrt(N)))
+    
+    # 1. 将 optimal iterations 紧跟在配置区下方
+    st.info(f"💡 Optimal iterations: **{optimal_k}**")
 
     st.markdown("---")
     st.subheader("🎮 Ideal Iteration")
@@ -338,39 +335,48 @@ with st.sidebar:
         reset = st.button("🔄 Reset", use_container_width=True)
     
     auto_btn = st.button("▶️ Auto Play", use_container_width=True)
+    if st.session_state.auto_playing:
+        st.info(f"▶️ Playing... k={st.session_state.k}")
 
     st.markdown("---")
     st.subheader("🌪️ Noise Experiment (Manual)")
     noise_p = st.slider("Physical Noise p", 0.0, 0.2, 0.0, 0.01)
     noisy_btn = st.button("🔬 Run Noisy", use_container_width=True)
+    # 2. 将手动运行的提示固定在这里
+    if st.session_state.msg_noisy:
+        st.success(st.session_state.msg_noisy)
+        
     clear_btn = st.button("🗑️ Clear Noise Data", use_container_width=True)
 
     st.markdown("---")
     st.subheader("📊 Batch Noise Scan")
     repeat_m = st.selectbox("Repeat M (for Batch)", [5, 10, 20, 50], index=2)
     batch_btn = st.button("🚀 Run Batch Scan (p=0~0.2)", use_container_width=True)
+    # 3. 将批量扫描的提示固定在这里
+    if st.session_state.msg_batch:
+        st.success(st.session_state.msg_batch)
 
     st.markdown("---")
     st.subheader("📉 Error Mitigation")
     mit_btn = st.button("🛡️ Compare Mitigation", use_container_width=True)
+    # 4. 将误差缓解的提示固定在这里
+    if st.session_state.msg_mit:
+        st.success(st.session_state.msg_mit)
 
     st.markdown("---")
     st.subheader("📐 Convergence Check")
     conv_btn = st.button("🔍 Run Convergence (p=0.08)", use_container_width=True)
+    # 5. 将收敛检查的提示固定在这里
+    if st.session_state.msg_conv:
+        st.success(st.session_state.msg_conv)
 
-    st.markdown("---")
-    st.info(f"💡 Optimal iterations: **{optimal_k}**")
-
-# ---------- 按钮逻辑 ----------
+# ---------- 按钮逻辑与提示更新 ----------
 if step or reset:
     st.session_state.auto_playing = False
 
-if step:
-    st.session_state.k += 1
-if reset:
-    st.session_state.k = 0
-if auto_btn:
-    st.session_state.auto_playing = True
+if step: st.session_state.k += 1
+if reset: st.session_state.k = 0
+if auto_btn: st.session_state.auto_playing = True
 
 k = st.session_state.k
 target_str = format(target, f'0{n}b')
@@ -382,26 +388,41 @@ for i in range(4):
     cnt = run_ideal(n, target, i)
     rates[i] = cnt.get(target_str, 0) / 1024
 
+# 当点击 Run Noisy 时：只显示当前提示，清空其他
 if noisy_btn:
     cnt_n = run_noisy(n, target, optimal_k, noise_p)
     succ_n = cnt_n.get(target_str, 0) / 1024
-    ideal_counts = run_ideal(n, target, optimal_k, 1024)
-    fid = state_fidelity(cnt_n, ideal_counts)
+    fid = state_fidelity(cnt_n, run_ideal(n, target, optimal_k, 1024))
     st.session_state.noise_data.append((noise_p, succ_n, 0, fid))
-    st.sidebar.success(f"p={noise_p:.2f}, success={succ_n:.1%}, fid={fid:.3f}")
+    st.session_state.msg_noisy = f"p={noise_p:.2f}, succ={succ_n:.1%}, fid={fid:.3f}"
+    st.session_state.msg_batch = ""
+    st.session_state.msg_mit = ""
+    st.session_state.msg_conv = ""
+    st.rerun()
 
+# 当点击 Clear 时：清空所有数据与提示
 if clear_btn:
     st.session_state.noise_data.clear()
     st.session_state.conv_result = None
+    st.session_state.msg_noisy = ""
+    st.session_state.msg_batch = ""
+    st.session_state.msg_mit = ""
+    st.session_state.msg_conv = ""
+    st.rerun()
 
+# 当点击 Run Batch Scan 时：清空其他提示
 if batch_btn:
     p_values = tuple(np.round(np.arange(0.0, 0.21, 0.02), 2))
     with st.spinner("Running batch noise scan..."):
-        noise_data = batch_noise_scan(n, target, optimal_k, p_values,
-                                      repeat=repeat_m)
+        noise_data = batch_noise_scan(n, target, optimal_k, p_values, repeat=repeat_m)
     st.session_state.noise_data = noise_data
-    st.sidebar.success("✅ Batch scan complete!")
+    st.session_state.msg_batch = "✅ Batch scan complete!"
+    st.session_state.msg_noisy = ""
+    st.session_state.msg_mit = ""
+    st.session_state.msg_conv = ""
+    st.rerun()
 
+# 当点击 Compare Mitigation 时：清空其他提示
 if mit_btn:
     readout_p = 0.1
     cnt_noisy = run_readout_noisy(n, target, optimal_k, readout_p)
@@ -410,14 +431,22 @@ if mit_btn:
     total_mit = sum(cnt_mit.values())
     succ_mit = cnt_mit.get(target_str, 0) / total_mit if total_mit > 0 else 0
     st.session_state.mit_result = (succ_noisy, succ_mit, readout_p)
-    st.sidebar.success(f"Mitigation: {succ_noisy:.1%} → {succ_mit:.1%}")
+    st.session_state.msg_mit = f"Mitigation: {succ_noisy:.1%} → {succ_mit:.1%}"
+    st.session_state.msg_noisy = ""
+    st.session_state.msg_batch = ""
+    st.session_state.msg_conv = ""
+    st.rerun()
 
+# 当点击 Run Convergence 时：清空其他提示
 if conv_btn:
     with st.spinner("Running convergence diagnostic..."):
-        conv = convergence_diagnostic(n, target, optimal_k, p_fixed=0.08,
-                                      M_list=(5, 10, 20, 50, 100))
+        conv = convergence_diagnostic(n, target, optimal_k, p_fixed=0.08, M_list=(5, 10, 20, 50, 100))
     st.session_state.conv_result = conv
-    st.sidebar.success("✅ Convergence diagnostic complete!")
+    st.session_state.msg_conv = "✅ Convergence diagnostic complete!"
+    st.session_state.msg_noisy = ""
+    st.session_state.msg_batch = ""
+    st.session_state.msg_mit = ""
+    st.rerun()
 
 # ---------- 指标卡片 ----------
 theta_deg = np.degrees(np.arcsin(1 / np.sqrt(N)))
@@ -463,8 +492,7 @@ with right3:
 left4, right4 = st.columns(2, gap="small")
 with left4:
     st.subheader("📐 Quantum / Classical Advantage Ratio")
-    st.image(plot_advantage_ratio(st.session_state.noise_data, n, optimal_k),
-             width=380)
+    st.image(plot_advantage_ratio(st.session_state.noise_data, n, optimal_k), width=380)
 with right4:
     st.subheader("🎯 State Fidelity vs Noise")
     st.image(plot_fidelity_curve(st.session_state.noise_data), width=380)
@@ -482,8 +510,7 @@ if 'mit_result' in st.session_state and st.session_state.mit_result is not None:
     ax.set_ylim(0, 1.05)
     ax.set_title(f'Readout Error p={rp:.2f}')
     for bar, val in zip(bars, values):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
-                f'{val:.1%}', ha='center')
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02, f'{val:.1%}', ha='center')
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
     buf.seek(0)
@@ -497,15 +524,12 @@ if st.session_state.conv_result is not None:
     st.image(plot_convergence(st.session_state.conv_result), width=420)
     st.caption("横轴为重复次数 M，纵轴为成功率 95% 置信区间半宽。曲线趋于平稳说明样本量已足够。")
 
-
-# ---------- 自动播放核心逻辑（必须放在文件最底部！） ----------
+# ---------- 自动播放核心逻辑 ----------
 if st.session_state.auto_playing:
     if st.session_state.k < optimal_k + 1:
-        st.info(f"▶️ Auto playing... 当前迭代次数 k = {st.session_state.k}，请稍候...")
-        time.sleep(0.8)  # 停留 0.8 秒，播放更连贯
+        time.sleep(0.8)
         st.session_state.k += 1
         st.rerun()
     else:
         st.session_state.auto_playing = False
-        st.sidebar.success("✅ Auto Play Finished!")
         st.rerun()
