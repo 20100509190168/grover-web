@@ -371,21 +371,9 @@ if step:
 if reset:
     st.session_state.k = 0
 
-# 点击自动播放
+# 点击自动播放按钮，启动自动播放
 if auto_btn:
     st.session_state.auto_playing = True
-
-# 自动播放核心逻辑（放慢速度，多跑几步让动画更明显）
-if st.session_state.auto_playing:
-    # 故意跑到 optimal_k + 2 步，这样可以看到箭头越过最佳位置
-    if st.session_state.k < optimal_k + 2:
-        time.sleep(1.2)  # 放慢至 1.2 秒，让眼睛能看清图片变化
-        st.session_state.k += 1
-        st.rerun()
-    else:
-        st.session_state.auto_playing = False
-        st.sidebar.success("✅ Auto Play Finished!")
-        st.rerun()
 
 k = st.session_state.k
 target_str = format(target, f'0{n}b')
@@ -511,3 +499,16 @@ if st.session_state.conv_result is not None:
     st.subheader("📐 Convergence Diagnostic (p=0.08)")
     st.image(plot_convergence(st.session_state.conv_result), width=420)
     st.caption("横轴为重复次数 M，纵轴为成功率 95% 置信区间半宽。曲线趋于平稳说明样本量已足够。")
+
+
+# ---------- 自动播放核心逻辑（必须放在文件最底部！） ----------
+if st.session_state.auto_playing:
+    if st.session_state.k < optimal_k + 1:
+        st.info(f"▶️ Auto playing... 当前迭代次数 k = {st.session_state.k}，请稍候...")
+        time.sleep(1.5)  # 停留 1.5 秒，让用户看清楚当前的图
+        st.session_state.k += 1
+        st.rerun()
+    else:
+        st.session_state.auto_playing = False
+        st.sidebar.success("✅ Auto Play Finished!")
+        st.rerun()
