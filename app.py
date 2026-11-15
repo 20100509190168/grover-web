@@ -505,7 +505,7 @@ if st.session_state.conv_result is not None:
 if st.session_state.auto_playing:
     if st.session_state.k < optimal_k + 1:
         st.info(f"▶️ Auto playing... 当前迭代次数 k = {st.session_state.k}，请稍候...")
-        time.sleep(1.5)  # 停留 1.5 秒，让用户看清楚当前的图
+        time.sleep(0.8)  # 停留 0.8 秒，播放更连贯
         st.session_state.k += 1
         st.rerun()
     else:
