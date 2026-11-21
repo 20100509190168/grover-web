@@ -211,6 +211,17 @@ def plot_bloch(n, k):
     ax.set_title(f'Bloch Disk (k={k})')
     return fig_to_img(fig)
 
+def plot_amplitude(counts, n):
+    fig, ax = plt.subplots(figsize=(4, 3.5))
+    total = sum(counts.values())
+    binary_states = [format(i, f'0{n}b') for i in range(2 ** n)]
+    amps = [np.sqrt(counts.get(s, 0) / total) for s in binary_states]
+    labels = [f'|{s}⟩' for s in binary_states]
+    ax.bar(labels, amps, color='orange', edgecolor='white')
+    ax.set_title('Probability Amplitudes'); ax.set_ylabel('Magnitude')
+    plt.xticks(rotation=45 if len(labels) > 8 else 0)
+    return fig_to_img(fig)
+
 def plot_counts(counts):
     fig, ax = plt.subplots(figsize=(4, 3.5))
     states = sorted(counts.keys())
@@ -228,15 +239,16 @@ def plot_success_curve(rates):
     ax.set_xticks(ks); ax.grid(True, alpha=0.3); ax.set_ylim(0, 1.05)
     return fig_to_img(fig)
 
-def plot_amplitude(counts, n):
+def plot_complexity(N, optimal_k):
     fig, ax = plt.subplots(figsize=(4, 3.5))
-    total = sum(counts.values())
-    binary_states = [format(i, f'0{n}b') for i in range(2 ** n)]
-    amps = [np.sqrt(counts.get(s, 0) / total) for s in binary_states]
-    labels = [f'|{s}⟩' for s in binary_states]
-    ax.bar(labels, amps, color='orange', edgecolor='white')
-    ax.set_title('Probability Amplitudes'); ax.set_ylabel('Magnitude')
-    plt.xticks(rotation=45 if len(labels) > 8 else 0)
+    labels = ['Classical\n(worst case)', 'Grover\n(optimal)']
+    values = [N - 1, optimal_k]
+    bars = ax.bar(labels, values, color=['gray', 'red'], edgecolor='white')
+    ax.set_ylabel('Queries / Iterations')
+    ax.set_title('Quantum Speedup')
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1,
+                str(val), ha='center', fontsize=12)
     return fig_to_img(fig)
 
 def plot_noise_curve(data, N):
@@ -250,18 +262,6 @@ def plot_noise_curve(data, N):
         ax.errorbar(ps, means, yerr=stds, fmt='o-', color='red', capsize=3)
         ax.axhline(y=1 / N, color='gray', linestyle='--', label='Random Guess')
         ax.legend(); ax.grid(True, alpha=0.3)
-    return fig_to_img(fig)
-
-def plot_complexity(N, optimal_k):
-    fig, ax = plt.subplots(figsize=(4, 3.5))
-    labels = ['Classical\n(worst case)', 'Grover\n(optimal)']
-    values = [N - 1, optimal_k]
-    bars = ax.bar(labels, values, color=['gray', 'red'], edgecolor='white')
-    ax.set_ylabel('Queries / Iterations')
-    ax.set_title('Quantum Speedup')
-    for bar, val in zip(bars, values):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1,
-                str(val), ha='center', fontsize=12)
     return fig_to_img(fig)
 
 def plot_advantage_ratio(data, n, optimal_k):
@@ -307,8 +307,6 @@ if 'k' not in st.session_state: st.session_state.k = 0
 if 'noise_data' not in st.session_state: st.session_state.noise_data = []
 if 'conv_result' not in st.session_state: st.session_state.conv_result = None
 if 'auto_playing' not in st.session_state: st.session_state.auto_playing = False
-
-# 记录提示信息的状态
 if 'msg_noisy' not in st.session_state: st.session_state.msg_noisy = ""
 if 'msg_batch' not in st.session_state: st.session_state.msg_batch = ""
 if 'msg_mit' not in st.session_state: st.session_state.msg_mit = ""
@@ -323,7 +321,6 @@ with st.sidebar:
                           format_func=lambda x: f"|{x:0{n}b}⟩")
     optimal_k = int(np.floor(np.pi / 4 * np.sqrt(N)))
     
-    # 1. 将 optimal iterations 紧跟在配置区下方
     st.info(f"💡 Optimal iterations: **{optimal_k}**")
 
     st.markdown("---")
@@ -342,7 +339,6 @@ with st.sidebar:
     st.subheader("🌪️ Noise Experiment (Manual)")
     noise_p = st.slider("Physical Noise p", 0.0, 0.2, 0.0, 0.01)
     noisy_btn = st.button("🔬 Run Noisy", use_container_width=True)
-    # 2. 将手动运行的提示固定在这里
     if st.session_state.msg_noisy:
         st.success(st.session_state.msg_noisy)
         
@@ -352,25 +348,22 @@ with st.sidebar:
     st.subheader("📊 Batch Noise Scan")
     repeat_m = st.selectbox("Repeat M (for Batch)", [5, 10, 20, 50], index=2)
     batch_btn = st.button("🚀 Run Batch Scan (p=0~0.2)", use_container_width=True)
-    # 3. 将批量扫描的提示固定在这里
     if st.session_state.msg_batch:
         st.success(st.session_state.msg_batch)
 
     st.markdown("---")
     st.subheader("📉 Error Mitigation")
     mit_btn = st.button("🛡️ Compare Mitigation", use_container_width=True)
-    # 4. 将误差缓解的提示固定在这里
     if st.session_state.msg_mit:
         st.success(st.session_state.msg_mit)
 
     st.markdown("---")
     st.subheader("📐 Convergence Check")
     conv_btn = st.button("🔍 Run Convergence (p=0.08)", use_container_width=True)
-    # 5. 将收敛检查的提示固定在这里
     if st.session_state.msg_conv:
         st.success(st.session_state.msg_conv)
 
-# ---------- 按钮逻辑与提示更新 ----------
+# ---------- 按钮逻辑 ----------
 if step or reset:
     st.session_state.auto_playing = False
 
@@ -388,7 +381,6 @@ for i in range(4):
     cnt = run_ideal(n, target, i)
     rates[i] = cnt.get(target_str, 0) / 1024
 
-# 当点击 Run Noisy 时：只显示当前提示，清空其他
 if noisy_btn:
     cnt_n = run_noisy(n, target, optimal_k, noise_p)
     succ_n = cnt_n.get(target_str, 0) / 1024
@@ -400,7 +392,6 @@ if noisy_btn:
     st.session_state.msg_conv = ""
     st.rerun()
 
-# 当点击 Clear 时：清空所有数据与提示
 if clear_btn:
     st.session_state.noise_data.clear()
     st.session_state.conv_result = None
@@ -410,7 +401,6 @@ if clear_btn:
     st.session_state.msg_conv = ""
     st.rerun()
 
-# 当点击 Run Batch Scan 时：清空其他提示
 if batch_btn:
     p_values = tuple(np.round(np.arange(0.0, 0.21, 0.02), 2))
     with st.spinner("Running batch noise scan..."):
@@ -422,7 +412,6 @@ if batch_btn:
     st.session_state.msg_conv = ""
     st.rerun()
 
-# 当点击 Compare Mitigation 时：清空其他提示
 if mit_btn:
     readout_p = 0.1
     cnt_noisy = run_readout_noisy(n, target, optimal_k, readout_p)
@@ -437,7 +426,6 @@ if mit_btn:
     st.session_state.msg_conv = ""
     st.rerun()
 
-# 当点击 Run Convergence 时：清空其他提示
 if conv_btn:
     with st.spinner("Running convergence diagnostic..."):
         conv = convergence_diagnostic(n, target, optimal_k, p_fixed=0.08, M_list=(5, 10, 20, 50, 100))
@@ -461,68 +449,81 @@ c4.metric("Measured Success", f"{success:.1%}")
 
 st.markdown("---")
 
-# ---------- 第一行 ----------
-left1, right1 = st.columns(2, gap="small")
-with left1:
-    st.subheader("🔵 Bloch Disk")
+# ==================== 第一部分：理想机制与基础交互 ====================
+st.markdown("### 🟢 第一部分：理想机制与基础交互")
+
+# 1 & 2：布洛赫圆盘 & 概率振幅
+row1_left, row1_right = st.columns(2, gap="small")
+with row1_left:
+    st.subheader("1. Bloch Disk (布洛赫圆盘)")
     st.image(plot_bloch(n, k), width=380)
-with right1:
-    st.subheader("📊 Measurement Distribution")
-    st.image(plot_counts(counts), width=380)
-
-# ---------- 第二行 ----------
-left2, right2 = st.columns(2, gap="small")
-with left2:
-    st.subheader("📈 Success Rate vs Iterations")
-    st.image(plot_success_curve(rates), width=380)
-with right2:
-    st.subheader("🌪️ Noise Impact Curve")
-    st.image(plot_noise_curve(st.session_state.noise_data, N), width=380)
-
-# ---------- 第三行 ----------
-left3, right3 = st.columns(2, gap="small")
-with left3:
-    st.subheader("🔬 Probability Amplitudes")
+with row1_right:
+    st.subheader("2. Probability Amplitudes (概率振幅)")
     st.image(plot_amplitude(counts, n), width=380)
-with right3:
-    st.subheader("⚖️ Complexity Comparison")
-    st.image(plot_complexity(N, optimal_k), width=380)
 
-# ---------- 第四行：高级指标 ----------
-left4, right4 = st.columns(2, gap="small")
-with left4:
-    st.subheader("📐 Quantum / Classical Advantage Ratio")
+# 3 & 4：测量分布 & 成功率曲线
+row2_left, row2_right = st.columns(2, gap="small")
+with row2_left:
+    st.subheader("3. Measurement Distribution (测量分布)")
+    st.image(plot_counts(counts), width=380)
+with row2_right:
+    st.subheader("4. Success Rate vs Iterations (成功率曲线)")
+    st.image(plot_success_curve(rates), width=380)
+
+# 5：复杂度比较
+st.subheader("5. Complexity Comparison (复杂度比较)")
+st.image(plot_complexity(N, optimal_k), width=380)
+
+st.markdown("---")
+
+# ==================== 第二部分：NISQ 物理挑战 ====================
+st.markdown("### 🔴 第二部分：NISQ 物理挑战")
+
+# 6 & 7：噪声影响曲线 & 优势比
+row3_left, row3_right = st.columns(2, gap="small")
+with row3_left:
+    st.subheader("6. Noise Impact Curve (噪声影响曲线)")
+    st.image(plot_noise_curve(st.session_state.noise_data, N), width=380)
+with row3_right:
+    st.subheader("7. Advantage Ratio (量子/经典优势比)")
     st.image(plot_advantage_ratio(st.session_state.noise_data, n, optimal_k), width=380)
-with right4:
-    st.subheader("🎯 State Fidelity vs Noise")
-    st.image(plot_fidelity_curve(st.session_state.noise_data), width=380)
 
-# ---------- 误差缓解结果 ----------
-if 'mit_result' in st.session_state and st.session_state.mit_result is not None:
-    st.markdown("---")
-    st.subheader("📉 Measurement Error Mitigation Result")
-    succ_noisy, succ_mit, rp = st.session_state.mit_result
-    fig, ax = plt.subplots(figsize=(4, 3))
-    labels = ['Noisy', 'Mitigated']
-    values = [succ_noisy, succ_mit]
-    bars = ax.bar(labels, values, color=['#D32F2F', '#4CAF50'], edgecolor='white')
-    ax.set_ylabel('Success Rate')
-    ax.set_ylim(0, 1.05)
-    ax.set_title(f'Readout Error p={rp:.2f}')
-    for bar, val in zip(bars, values):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02, f'{val:.1%}', ha='center')
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
-    buf.seek(0)
-    plt.close(fig)
-    st.image(buf, width=400)
+# 8：状态保真度
+st.subheader("8. State Fidelity vs Noise (状态保真度)")
+st.image(plot_fidelity_curve(st.session_state.noise_data), width=380)
 
-# ---------- 收敛性诊断结果 ----------
-if st.session_state.conv_result is not None:
-    st.markdown("---")
-    st.subheader("📐 Convergence Diagnostic (p=0.08)")
-    st.image(plot_convergence(st.session_state.conv_result), width=420)
-    st.caption("横轴为重复次数 M，纵轴为成功率 95% 置信区间半宽。曲线趋于平稳说明样本量已足够。")
+st.markdown("---")
+
+# ==================== 第三部分：抗噪与验证 ====================
+st.markdown("### 🔵 第三部分：抗噪与验证")
+
+# 9 & 10：误差缓解 & 收敛检验
+row4_left, row4_right = st.columns(2, gap="small")
+
+with row4_left:
+    if 'mit_result' in st.session_state and st.session_state.mit_result is not None:
+        st.subheader("9. Error Mitigation (错误缓解)")
+        succ_noisy, succ_mit, rp = st.session_state.mit_result
+        fig, ax = plt.subplots(figsize=(4, 3))
+        labels = ['Noisy', 'Mitigated']
+        values = [succ_noisy, succ_mit]
+        bars = ax.bar(labels, values, color=['#D32F2F', '#4CAF50'], edgecolor='white')
+        ax.set_ylabel('Success Rate')
+        ax.set_ylim(0, 1.05)
+        ax.set_title(f'Readout Error p={rp:.2f}')
+        for bar, val in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02, f'{val:.1%}', ha='center')
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
+        buf.seek(0)
+        plt.close(fig)
+        st.image(buf, width=380)
+
+with row4_right:
+    if st.session_state.conv_result is not None:
+        st.subheader("10. Convergence Diagnostic (收敛检查)")
+        st.image(plot_convergence(st.session_state.conv_result), width=380)
+        st.caption("横轴为重复次数 M，纵轴为成功率 95% 置信区间半宽。")
 
 # ---------- 自动播放核心逻辑 ----------
 if st.session_state.auto_playing:
