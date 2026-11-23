@@ -65,26 +65,32 @@ def run_ideal(n, target, k, shots=1024):
     counts = sim.run(qc, shots=shots).result().get_counts()
     return counts
 
-# ---------- 物理复合噪声：热弛豫 + 读出误差 ----------
-def build_physical_noise(noise_p, n, gate_time_1q=50.0, gate_time_2q=300.0):
+# ---------- 物理复合噪声：热弛豫 + 读出误差 (已修复时间参数) ----------
+def build_physical_noise(noise_p, n, gate_time_1q=0.05, gate_time_2q=0.3):
+    # T1/T2 单位通常为微秒(μs)，门操作时间也换算为微秒。
+    # 这里的 0.05 和 0.3 分别代表 50ns 和 300ns，符合超导硬件的真实物理量级。
     T1_ideal, T2_ideal = 80.0, 60.0
     T1 = T1_ideal / (1 + noise_p * 8.0)
     T2 = min(T2_ideal / (1 + noise_p * 8.0), 2 * T1)
 
     nm = NoiseModel()
 
+    # 单比特门
     err_1q = thermal_relaxation_error(T1, T2, gate_time_1q)
     nm.add_all_qubit_quantum_error(err_1q, ['h', 'x', 'z'])
 
+    # 双比特门
     err_2q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_2q, ['cz', 'cx'])
 
+    # 三比特门
     err_3q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q)).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_3q, ['ccx'])
 
+    # 读出误差
     readout_p = min(noise_p * 0.4, 0.15)
     if readout_p > 0:
         nm.add_all_qubit_readout_error(
@@ -253,7 +259,7 @@ def plot_complexity(N, optimal_k):
 
 def plot_noise_curve(data, N):
     fig, ax = plt.subplots(figsize=(4, 3.5))
-    ax.set_xlim(0, 0.22); ax.set_ylim(0, 1.05)
+    ax.set_xlim(-0.01, 0.21); ax.set_ylim(0, 1.05)
     ax.set_xlabel('Noise Strength p'); ax.set_ylabel('Success Rate')
     if data:
         ps = [d[0] for d in data]
@@ -307,6 +313,7 @@ if 'k' not in st.session_state: st.session_state.k = 0
 if 'noise_data' not in st.session_state: st.session_state.noise_data = []
 if 'conv_result' not in st.session_state: st.session_state.conv_result = None
 if 'auto_playing' not in st.session_state: st.session_state.auto_playing = False
+
 if 'msg_noisy' not in st.session_state: st.session_state.msg_noisy = ""
 if 'msg_batch' not in st.session_state: st.session_state.msg_batch = ""
 if 'msg_mit' not in st.session_state: st.session_state.msg_mit = ""
