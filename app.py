@@ -67,8 +67,6 @@ def run_ideal(n, target, k, shots=1024):
 
 # ---------- 物理复合噪声：热弛豫 + 读出误差 (已修复时间参数) ----------
 def build_physical_noise(noise_p, n, gate_time_1q=0.05, gate_time_2q=0.3):
-    # T1/T2 单位通常为微秒(μs)，门操作时间也换算为微秒。
-    # 这里的 0.05 和 0.3 分别代表 50ns 和 300ns，符合超导硬件的真实物理量级。
     T1_ideal, T2_ideal = 80.0, 60.0
     T1 = T1_ideal / (1 + noise_p * 8.0)
     T2 = min(T2_ideal / (1 + noise_p * 8.0), 2 * T1)
@@ -197,21 +195,28 @@ def fig_to_img(fig):
     return buf
 
 def plot_bloch(n, k):
+    """已修复：红色箭头方向完美模拟振幅放大"""
     N = 2 ** n
     theta = np.arcsin(1 / np.sqrt(N))
     fig, ax = plt.subplots(figsize=(4, 4))
     ax.add_artist(plt.Circle((0, 0), 1, fill=False, color='gray'))
     ax.axhline(0, color='gray', alpha=0.3)
     ax.axvline(0, color='gray', alpha=0.3)
+    
+    # |t⟩ 固定在正上方 (90度)
     ax.arrow(0, 0, 0, 1, head_width=0.06, fc='blue')
     ax.text(0.1, 1.05, '|t⟩', color='blue')
-    s_angle = np.pi / 2 - theta
-    ax.arrow(0, 0, np.cos(s_angle), np.sin(s_angle), head_width=0.06,
+    
+    # |s⟩ 与水平轴的夹角为 theta
+    ax.arrow(0, 0, np.cos(theta), np.sin(theta), head_width=0.06,
              fc='green', linestyle='dashed')
-    ax.text(np.cos(s_angle) * 1.1, np.sin(s_angle) * 1.1, '|s⟩', color='green')
-    cur_angle = np.pi / 2 - (theta + 2 * theta * k)
+    ax.text(np.cos(theta) * 1.1, np.sin(theta) * 1.1, '|s⟩', color='green')
+    
+    # 当前态角度：初始角度为 theta，每次向 |t⟩ 旋转 2*theta
+    cur_angle = theta + 2 * theta * k
     ax.arrow(0, 0, np.cos(cur_angle), np.sin(cur_angle), head_width=0.08,
              fc='red', linewidth=2)
+             
     ax.set_xlim(-1.3, 1.3); ax.set_ylim(-1.3, 1.3)
     ax.set_aspect('equal')
     ax.set_title(f'Bloch Disk (k={k})')
