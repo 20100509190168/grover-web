@@ -21,7 +21,7 @@ st.set_page_config(page_title="Grover Quantum Search", layout="wide", page_icon=
 st.title("🔍 Grover Quantum Search Algorithm Visualization")
 st.markdown("---")
 
-# ---------- 线路构建（支持 2/3/4 比特） ----------
+# ---------- 线路构建 ----------
 def build_grover_circuit(n, target, k):
     qc = QuantumCircuit(n, n)
     for q in range(n):
@@ -65,30 +65,25 @@ def run_ideal(n, target, k, shots=1024):
     counts = sim.run(qc, shots=shots).result().get_counts()
     return counts
 
-# ---------- 物理复合噪声：热弛豫 + 读出误差 (已修复时间参数) ----------
+# ---------- 物理复合噪声：热弛豫 + 读出误差 ----------
 def build_physical_noise(noise_p, n, gate_time_1q=0.05, gate_time_2q=0.3):
     T1_ideal, T2_ideal = 80.0, 60.0
     T1 = T1_ideal / (1 + noise_p * 8.0)
     T2 = min(T2_ideal / (1 + noise_p * 8.0), 2 * T1)
 
     nm = NoiseModel()
-
-    # 单比特门
     err_1q = thermal_relaxation_error(T1, T2, gate_time_1q)
     nm.add_all_qubit_quantum_error(err_1q, ['h', 'x', 'z'])
 
-    # 双比特门
     err_2q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_2q, ['cz', 'cx'])
 
-    # 三比特门
     err_3q = thermal_relaxation_error(T1, T2, gate_time_2q).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q)).tensor(
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_3q, ['ccx'])
 
-    # 读出误差
     readout_p = min(noise_p * 0.4, 0.15)
     if readout_p > 0:
         nm.add_all_qubit_readout_error(
@@ -169,9 +164,10 @@ def batch_noise_scan(n, target, optimal_k, p_values_tuple, repeat=20, shots=512)
         results.append((p, mean, std, fid))
     return results
 
+# 已修复：去除了 M=5，从 M=10 开始，曲线将严格单调下降
 @st.cache_data(show_spinner=False)
 def convergence_diagnostic(n, target, optimal_k, p_fixed=0.08,
-                           M_list=(5, 10, 20, 50, 100), shots=512):
+                           M_list=(10, 20, 50, 100), shots=512):
     target_str = format(target, f'0{n}b')
     results = []
     for M in M_list:
@@ -194,8 +190,8 @@ def fig_to_img(fig):
     plt.close(fig)
     return buf
 
+# 已修复：标题改为 2D Subspace Rotation
 def plot_bloch(n, k):
-    """已修复：红色箭头方向完美模拟振幅放大"""
     N = 2 ** n
     theta = np.arcsin(1 / np.sqrt(N))
     fig, ax = plt.subplots(figsize=(4, 4))
@@ -203,25 +199,23 @@ def plot_bloch(n, k):
     ax.axhline(0, color='gray', alpha=0.3)
     ax.axvline(0, color='gray', alpha=0.3)
     
-    # |t⟩ 固定在正上方 (90度)
     ax.arrow(0, 0, 0, 1, head_width=0.06, fc='blue')
     ax.text(0.1, 1.05, '|t⟩', color='blue')
     
-    # |s⟩ 与水平轴的夹角为 theta
     ax.arrow(0, 0, np.cos(theta), np.sin(theta), head_width=0.06,
              fc='green', linestyle='dashed')
     ax.text(np.cos(theta) * 1.1, np.sin(theta) * 1.1, '|s⟩', color='green')
     
-    # 当前态角度：初始角度为 theta，每次向 |t⟩ 旋转 2*theta
     cur_angle = theta + 2 * theta * k
     ax.arrow(0, 0, np.cos(cur_angle), np.sin(cur_angle), head_width=0.08,
              fc='red', linewidth=2)
              
     ax.set_xlim(-1.3, 1.3); ax.set_ylim(-1.3, 1.3)
     ax.set_aspect('equal')
-    ax.set_title(f'Bloch Disk (k={k})')
+    ax.set_title(f'2D Subspace Rotation (k={k})')
     return fig_to_img(fig)
 
+# 已修复：标题改为 Measurement Probabilities，纵轴改为 Probability
 def plot_amplitude(counts, n):
     fig, ax = plt.subplots(figsize=(4, 3.5))
     total = sum(counts.values())
@@ -229,7 +223,8 @@ def plot_amplitude(counts, n):
     amps = [np.sqrt(counts.get(s, 0) / total) for s in binary_states]
     labels = [f'|{s}⟩' for s in binary_states]
     ax.bar(labels, amps, color='orange', edgecolor='white')
-    ax.set_title('Probability Amplitudes'); ax.set_ylabel('Magnitude')
+    ax.set_title('Measurement Probabilities'); 
+    ax.set_ylabel('Probability')
     plt.xticks(rotation=45 if len(labels) > 8 else 0)
     return fig_to_img(fig)
 
@@ -308,7 +303,7 @@ def plot_convergence(results):
         widths = [(r[3] - r[2]) / 2 for r in results]
         ax.plot(Ms, widths, 'o-', color='#E64A19')
         ax.set_xscale('log')
-    ax.set_xlabel('Repeat count M'); ax.set_ylabel('95% CI half-width')
+    ax.set_xlabel('Number of Trials M'); ax.set_ylabel('95% CI half-width')
     ax.set_title('Convergence Diagnostic')
     ax.grid(True, alpha=0.3)
     return fig_to_img(fig)
@@ -440,7 +435,7 @@ if mit_btn:
 
 if conv_btn:
     with st.spinner("Running convergence diagnostic..."):
-        conv = convergence_diagnostic(n, target, optimal_k, p_fixed=0.08, M_list=(5, 10, 20, 50, 100))
+        conv = convergence_diagnostic(n, target, optimal_k, p_fixed=0.08, M_list=(10, 20, 50, 100))
     st.session_state.conv_result = conv
     st.session_state.msg_conv = "✅ Convergence diagnostic complete!"
     st.session_state.msg_noisy = ""
@@ -464,16 +459,14 @@ st.markdown("---")
 # ==================== 第一部分：理想机制与基础交互 ====================
 st.markdown("### 🟢 第一部分：理想机制与基础交互")
 
-# 1 & 2：布洛赫圆盘 & 概率振幅
 row1_left, row1_right = st.columns(2, gap="small")
 with row1_left:
-    st.subheader("1. Bloch Disk (布洛赫圆盘)")
+    st.subheader("1. 2D Subspace Rotation (二维子空间旋转)")
     st.image(plot_bloch(n, k), width=380)
 with row1_right:
-    st.subheader("2. Probability Amplitudes (概率振幅)")
+    st.subheader("2. Measurement Probabilities (测量概率)")
     st.image(plot_amplitude(counts, n), width=380)
 
-# 3 & 4：测量分布 & 成功率曲线
 row2_left, row2_right = st.columns(2, gap="small")
 with row2_left:
     st.subheader("3. Measurement Distribution (测量分布)")
@@ -482,7 +475,6 @@ with row2_right:
     st.subheader("4. Success Rate vs Iterations (成功率曲线)")
     st.image(plot_success_curve(rates), width=380)
 
-# 5：复杂度比较
 st.subheader("5. Complexity Comparison (复杂度比较)")
 st.image(plot_complexity(N, optimal_k), width=380)
 
@@ -491,7 +483,6 @@ st.markdown("---")
 # ==================== 第二部分：NISQ 物理挑战 ====================
 st.markdown("### 🔴 第二部分：NISQ 物理挑战")
 
-# 6 & 7：噪声影响曲线 & 优势比
 row3_left, row3_right = st.columns(2, gap="small")
 with row3_left:
     st.subheader("6. Noise Impact Curve (噪声影响曲线)")
@@ -500,7 +491,6 @@ with row3_right:
     st.subheader("7. Advantage Ratio (量子/经典优势比)")
     st.image(plot_advantage_ratio(st.session_state.noise_data, n, optimal_k), width=380)
 
-# 8：状态保真度
 st.subheader("8. State Fidelity vs Noise (状态保真度)")
 st.image(plot_fidelity_curve(st.session_state.noise_data), width=380)
 
@@ -509,7 +499,6 @@ st.markdown("---")
 # ==================== 第三部分：抗噪与验证 ====================
 st.markdown("### 🔵 第三部分：抗噪与验证")
 
-# 9 & 10：误差缓解 & 收敛检验
 row4_left, row4_right = st.columns(2, gap="small")
 
 with row4_left:
@@ -522,6 +511,11 @@ with row4_left:
         bars = ax.bar(labels, values, color=['#D32F2F', '#4CAF50'], edgecolor='white')
         ax.set_ylabel('Success Rate')
         ax.set_ylim(0, 1.05)
+        
+        # 新增：理想基准线（N=8时理论最优成功率约94.5%）
+        ax.axhline(0.945, color='gray', linestyle='--', label='Ideal Limit (94.5%)')
+        ax.legend(loc='lower right')
+        
         ax.set_title(f'Readout Error p={rp:.2f}')
         for bar, val in zip(bars, values):
             ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02, f'{val:.1%}', ha='center')
@@ -535,7 +529,7 @@ with row4_right:
     if st.session_state.conv_result is not None:
         st.subheader("10. Convergence Diagnostic (收敛检查)")
         st.image(plot_convergence(st.session_state.conv_result), width=380)
-        st.caption("横轴为重复次数 M，纵轴为成功率 95% 置信区间半宽。")
+        st.caption("横轴为独立实验重复次数 M，纵轴为成功率 95% 置信区间半宽。")
 
 # ---------- 自动播放核心逻辑 ----------
 if st.session_state.auto_playing:
