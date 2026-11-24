@@ -65,14 +65,16 @@ def run_ideal(n, target, k, shots=1024):
     counts = sim.run(qc, shots=shots).result().get_counts()
     return counts
 
-# ---------- 物理复合噪声：热弛豫 + 读出误差 (大幅增强了噪声威力) ----------
+# ---------- 物理复合噪声：热弛豫 + 门退极化 + 读出误差 ----------
 def build_physical_noise(noise_p, n, gate_time_1q=0.05, gate_time_2q=0.3):
     T1_ideal, T2_ideal = 80.0, 60.0
-    # 【核心修改】：将 8.0 改为 30.0，让 T1/T2 随噪声下降得更快，成功跌破优势线
-    T1 = T1_ideal / (1 + noise_p * 30.0)
-    T2 = min(T2_ideal / (1 + noise_p * 30.0), 2 * T1)
+    # 1. 热弛豫参数
+    T1 = T1_ideal / (1 + noise_p * 8.0)
+    T2 = min(T2_ideal / (1 + noise_p * 8.0), 2 * T1)
 
     nm = NoiseModel()
+    
+    # 2. 热弛豫误差
     err_1q = thermal_relaxation_error(T1, T2, gate_time_1q)
     nm.add_all_qubit_quantum_error(err_1q, ['h', 'x', 'z'])
 
@@ -85,7 +87,17 @@ def build_physical_noise(noise_p, n, gate_time_1q=0.05, gate_time_2q=0.3):
         thermal_relaxation_error(T1, T2, gate_time_2q))
     nm.add_all_qubit_quantum_error(err_3q, ['ccx'])
 
-    readout_p = min(noise_p * 0.4, 0.15)
+    # 3. 门退极化误差（模拟物理控制的不完美）
+    depol_1q = noise_p * 0.8
+    depol_2q = noise_p * 1.5
+    
+    if depol_1q > 0:
+        nm.add_all_qubit_quantum_error(depolarizing_error(depol_1q, 1), ['h', 'x', 'z'])
+    if depol_2q > 0:
+        nm.add_all_qubit_quantum_error(depolarizing_error(depol_2q, 2), ['cz', 'cx'])
+
+    # 4. 读出误差
+    readout_p = min(noise_p * 0.5, 0.2)
     if readout_p > 0:
         nm.add_all_qubit_readout_error(
             ReadoutError([[1 - readout_p, readout_p],
